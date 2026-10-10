@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Trading Dashboard Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Integración de Chart.js para los gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+            padding-bottom: 50px;
+        }
+        .container {
+            width: 95%;
+            max-width: 1200px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            position: relative;
+        }
+        .capital-container {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        h1, h2, h3 { color: #2c3e50; }
+        .stats-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        .stats-box p { margin: 0; color: #6c757d; font-weight: bold; }
+        .stats-box div { font-size: 1.5em; font-weight: bold; color: #212529; }
+        
+        .entry {
+            background-color: #e7f3e7;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 5px solid #4CAF50;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .entry.loss {
+            background-color: #f3e7e7;
+            border-left: 5px solid #f44336;
+        }
+        .entry-details p { margin: 0; }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            margin-top: 30px;
+        }
+        .simulator-section {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid #bbdefb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Trading Dashboard Pro</h1>
+        
+        <!-- Configuración Inicial -->
+        <div class="row capital-container">
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Capital Inicial ($):</label>
+                <input type="number" class="form-control" id="capitalInput" placeholder="Ej: 1000">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Riesgo por Trade (%):</label>
+                <input type="number" class="form-control" id="riskInput" value="1" step="0.1">
+            </div>
+            <div class="col-md-3">
+                <p class="mb-1 fw-bold text-end">Capital Actual:</p>
+                <h4 class="text-end text-success" id="currentCapital">$0.00</h4>
+            </div>
+            <div class="col-md-3">
+                <p class="mb-1 fw-bold text-end">Riesgo en $:</p>
+                <h4 class="text-end text-danger" id="onePercent">$0.00</h4>
+            </div>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class="row mt-4 g-3">
+            <div class="col-md-2"><div class="stats-box"><p>Winrate</p><div id="rate" class="text-primary">0%</div></div></div>
+            <div class="col-md-2"><div class="stats-box"><p>Beneficio Neto</p><div id="winning">0.00</div></div></div>
+            <div class="col-md-2"><div class="stats-box"><p>Total Trades</p><div id="match">0</div></div></div>
+            <div class="col-md-3"><div class="stats-box"><p>Ganadas</p><div id="win" class="text-success">0</div></div></div>
+            <div class="col-md-3"><div class="stats-box"><p>Perdidas</p><div id="lose" class="text-danger">0</div></div></div>
+        </div>
+
+        <!-- Panel Manual -->
+        <div class="row mt-4 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Ratio Riesgo/Beneficio (R:R):</label>
+                <select id="rrSelect" class="form-select form-select-lg">
+                    <option value="1">1:1 (Arriesgas 1 para ganar 1)</option>
+                    <option value="1.5">1:1.5</option>
+                    <option value="2" selected>1:2 (Arriesgas 1 para ganar 2)</option>
+                    <option value="3">1:3 (Arriesgas 1 para ganar 3)</option>
+                    <option value="4">1:4 (Arriesgas 1 para ganar 4)</option>
+                    <option value="5">1:5 (Arriesgas 1 para ganar 5)</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-danger btn-lg w-100" onclick="registerTrade(0)">Perdida (Loss)</button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-success btn-lg w-100" onclick="registerTrade(1)">Ganada (Win)</button>
+            </div>
+        </div>
+
+        <!-- Simulador -->
+        <div class="simulator-section">
+            <h3><i class="bi bi-robot"></i> Simulador de Probabilidades</h3>
+            <p class="text-muted">Calcula iteraciones aleatorias basándose en tu Winrate esperado y el R:R seleccionado arriba.</p>
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">Winrate Esperado (%):</label>
+                    <input type="number" class="form-control" id="simWinrate" value="50" max="100" min="1">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Cantidad de Trades a simular:</label>
+                    <input type="number" class="form-control" id="simIterations" value="100" min="1">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" onclick="runSimulation()">Ejecutar Simulación</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico -->
+        <div class="chart-container">
+            <canvas id="equityChart"></canvas>
+        </div>
+
+        <div class="d-flex justify-content-between mt-5">
+            <h2>Historial de Trades</h2>
+            <button class="btn btn-outline-danger" onclick="resetDashboard()">Borrar Todo el Historial</button>
+        </div>
+        
+        <div id="history" class="mt-3"></div>
+    </div>
+
+    <script>
+        // Variables Globales
+        let trades = { wins: 0, losses: 0, total: 0 };
+        let netProfit = 0;
+        let capital = 0;
+        let equityCurve = []; 
+        let labels = [];
+        let chartInstance = null;
+
+        // Elementos del DOM
+        const els = {
+            match: document.getElementById("match"),
+            rate: document.getElementById("rate"),
+            winning: document.getElementById("winning"),
+            win: document.getElementById("win"),
+            lose: document.getElementById("lose"),
+            capitalInput: document.getElementById("capitalInput"),
+            currentCapital: document.getElementById("currentCapital"),
+            onePercent: document.getElementById("onePercent"),
+            riskInput: document.getElementById("riskInput"),
+            rrSelect: document.getElementById("rrSelect"),
+            history: document.getElementById("history")
+        };
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            loadData();
+        });
+
+        els.capitalInput.addEventListener('change', updateCapitalBase);
+        els.riskInput.addEventListener('input', updateRiskDisplay);
+
+        function updateCapitalBase() {
+            if(trades.total === 0) {
+                capital = parseFloat(els.capitalInput.value) || 0;
+                equityCurve = [capital];
+                labels = ["Inicio"];
+                updateUI();
+            }
+        }
+
+        function updateRiskDisplay() {
+            let riskPct = parseFloat(els.riskInput.value) || 1;
+            let riskAmount = capital * (riskPct / 100);
+            els.onePercent.textContent = `$${riskAmount.toFixed(2)}`;
+        }
+
+        function registerTrade(isWin, isSimulation = false) {
+            if (capital <= 0 && trades.total === 0) {
+                alert("Por favor, ingresa un capital inicial válido.");
+                return;
+            }
+
+            let riskPct = parseFloat(els.riskInput.value) || 1;
+            let riskAmount = capital * (riskPct / 100);
+            let rr = parseFloat(els.rrSelect.value);
+            let gain = 0;
+
+            if (isWin) {
+                trades.wins++;
+                gain = riskAmount * rr;
+            } else {
+                trades.losses++;
+                gain = -riskAmount;
+            }
+
+            trades.total++;
+            capital += gain;
+            netProfit += gain;
+
+            equityCurve.push(capital);
+            labels.push(`T${trades.total}`);
+
+            if (!isSimulation) {
+                saveData();
+                updateUI();
+                renderHistory();
+            }
+        }
+
+        function runSimulation() {
+            const targetWinrate = parseFloat(document.getElementById('simWinrate').value) / 100;
+            const iterations = parseInt(document.getElementById('simIterations').value);
+
+            if (capital <= 0) {
+                alert("Configura tu capital inicial primero.");
+                return;
+            }
+
+            for (let i = 0; i < iterations; i++) {
+                // Cálculo de probabilidad usando Math.random()
+                let result = Math.random() <= targetWinrate;
+                registerTrade(result, true); // true = modo silencioso para no recargar la UI en cada vuelta
+                
+                // Si la cuenta se quema, detenemos la simulación
+                if(capital <= 0) {
+                    capital = 0;
+                    alert(`La cuenta se quemó en el trade ${trades.total}`);
+                    break;
+                }
+            }
+
+            saveData();
+            updateUI();
+            renderHistory();
+        }
+
+        function updateUI() {
+            els.currentCapital.textContent = `$${capital.toFixed(2)}`;
+            updateRiskDisplay();
+            
+            els.match.textContent = trades.total;
+            els.win.textContent = trades.wins;
+            els.lose.textContent = trades.losses;
+            els.winning.textContent = netProfit > 0 ? `+$${netProfit.toFixed(2)}` : `$${netProfit.toFixed(2)}`;
+            els.winning.className = netProfit >= 0 ? "text-success" : "text-danger";
+
+            let winrate = trades.total > 0 ? (trades.wins / trades.total) * 100 : 0;
+            els.rate.textContent = `${winrate.toFixed(1)}%`;
+
+            updateChart();
+        }
+
+        // Gráfico con Chart.js
+        function initChart() {
+            const ctx = document.getElementById('equityChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Curva de Capital',
+                        data: equityCurve,
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            chartInstance.data.labels = labels;
+            chartInstance.data.datasets[0].data = equityCurve;
+            chartInstance.update();
+        }
+
+        function renderHistory() {
+            els.history.innerHTML = '';
+            // Renderizamos solo los últimos 20 para no colapsar el DOM si simulan miles
+            let start = Math.max(1, trades.total - 19); 
+            
+            if(trades.total > 20) {
+                let note = document.createElement('p');
+                note.className = "text-muted text-center";
+                note.textContent = `Mostrando los últimos 20 trades de ${trades.total}...`;
+                els.history.appendChild(note);
+            }
+
+            for(let i = trades.total; i >= start; i--) {
+                let currentCap = equityCurve[i];
+                let previousCap = equityCurve[i-1];
+                let diff = currentCap - previousCap;
+                let isWin = diff > 0;
+
+                const entryDiv = document.createElement('div');
+                entryDiv.className = `entry ${isWin ? '' : 'loss'}`;
+                entryDiv.innerHTML = `
+                    <div class="entry-details">
+                        <h5 class="mb-1">Trade #${i} <span class="badge ${isWin ? 'bg-success' : 'bg-danger'}">${isWin ? 'WIN' : 'LOSS'}</span></h5>
+                        <p class="text-muted">Resultado: ${isWin ? '+' : ''}${diff.toFixed(2)}</p>
+                    </div>
+                    <div class="text-end">
+                        <h5 class="mb-0">$${currentCap.toFixed(2)}</h5>
+                        <small class="text-muted">Balance</small>
+                    </div>
+                `;
+                els.history.appendChild(entryDiv);
+            }
+        }
+
+        function saveData() {
+            const data = { trades, netProfit, capital, equityCurve, labels };
+            localStorage.setItem('tradingProData', JSON.stringify(data));
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('tradingProData');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                trades = parsed.trades;
+                netProfit = parsed.netProfit;
+                capital = parsed.capital;
+                equityCurve = parsed.equityCurve;
+                labels = parsed.labels;
+                els.capitalInput.value = equityCurve[0].toFixed(2); // Set initial capital input
+                updateUI();
+                renderHistory();
+            }
+        }
+
+        function resetDashboard() {
+            if(confirm("¿Estás seguro de borrar todos los datos? Esto no se puede deshacer.")) {
+                localStorage.removeItem('tradingProData');
+                trades = { wins: 0, losses: 0, total: 0 };
+                netProfit = 0;
+                capital = parseFloat(els.capitalInput.value) || 0;
+                equityCurve = [capital];
+                labels = ["Inicio"];
+                updateUI();
+                els.history.innerHTML = '';
+            }
+        }
+    </script>
+</body>
+</html>
